@@ -1,0 +1,159 @@
+name: "Everyday at midnight check for new releases"
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync and merge upstream repo
+        uses: dabreadman/sync-upstream-repo@fc5fe9952946b1daaafd9abd7fcd7e260b81ddbe # v1.3.0
+        with:
+          upstream_repo: "https://github.com/ollama/ollama.git"
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+  tags:
+    runs-on: ubuntu-latest
+    needs:
+      - sync
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+          fetch-depth: 0
+
+      - name: Checkout Tags
+        id: checkout-tags
+        uses: chachako/checkout-tags@73862076cf5db6d3cf51c6160b939d9fcf2799c2 # v1.0.2
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      # # The branches are how checkout tags above checks for new tags
+      # - name: Push branches
+      #   if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
+      #   run: |
+      #     while read branch; do
+      #       git push origin refs/heads/$branch
+      #     done <<< "${{ steps.checkout-tags.outputs.branches }}"
+
+      - name: Grab first tag
+        id: latest-tag
+        run: |
+          echo "latest-tag=$(echo ${{ steps.checkout-tags.outputs.tags }} | cut -d '\n' -f 1)" | tee -a $GITHUB_OUTPUT
+
+      # - name: Kick off build workflow
+      #   if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
+      #   uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+      #   with:
+      #     github-token: ${{ secrets.WORKFLOW_TOKEN }}
+      #     script: |
+      #       const tags = `${{ steps.checkout-tags.outputs.tags }}`.split('\n')
+      #       github.rest.actions.createWorkflowDispatch({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         workflow_id: 'build_37.yml',
+      #         ref: 'main',
+      #         inputs: {
+      #           tag: tags[0]
+      #         }
+      #       })
+
+  update:
+    runs-on: ubuntu-latest
+    if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
+    needs:
+      - tags
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+          ref: "checkout-tags/${{ steps.latest-tag.outputs.latest-tag }}"
+
+      - name: Update for compute 3.7
+        run: |
+          sed -i 's/"CMAKE_CUDA_ARCHITECTURES": "50-virtual;60-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-virtual;87-virtual;89-virtual;90-virtual",/"CMAKE_CUDA_ARCHITECTURES": "37-virtual;50-virtual;60-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-virtual;87-virtual;89-virtual;90-virtual",/' CMakePresets.json
+          sed -i 's/list(APPEND ARCH_FLAGS -mavxvnni)/# list(APPEND ARCH_FLAGS -mavxvnni)/' ml/backend/ggml/ggml/src/ggml-cpu/CMakeLists.txt
+          sed -i 's/list(APPEND CMAKE_CUDA_ARCHITECTURES 50-virtual 61-virtual 70-virtual)/list(APPEND CMAKE_CUDA_ARCHITECTURES 37-virtual 50-virtual 61-virtual 70-virtual)/' ml/backend/ggml/ggml/src/ggml-cuda/CMakeLists.txt
+
+      - name: Create tag for compute 3.7
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+        with:
+          message: Update to build for compute 3.7
+          push: true
+          # tag: "${{ steps.latest-tag.outputs.latest-tag }}-37"
+
+  build:
+    runs-on: ubuntu-latest
+    if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
+    needs:
+      - tags
+      - update
+    steps:
+      - name: Kick off workflows to build for compute 3.7
+        if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.WORKFLOW_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'run_tag_arm.yml',
+              ref: 'main',
+              inputs: {
+                tag: ${{ steps.latest-tag.outputs.latest-tag }}
+              }
+            })
+
+  # linux:
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - tags
+  #   env:
+  #     LD_LIBRARY_PATH: "/usr/local/cuda-11.4/lib64"
+  #     CC: "/usr/bin/gcc-10"
+  #     CXX: "/usr/bin/g++-10"
+  #   steps:
+  #     - name: Install required packages
+  #       run: |
+  #         apt update
+  #         apt install gcc-10 g++-10 cmake wget -y
+
+  #     - name: Setup links
+  #       run: |
+  #         ln -sf /usr/bin/gcc-10 /usr/bin/gcc
+  #         ln -sf /usr/bin/g++-10 /usr/bin/g++
+
+  #     - name: Download and install Go
+  #       run: |
+  #         wget -nv https://go.dev/dl/go1.24.2.linux-amd64.tar.gz
+  #         tar -C /usr/local -xvzf go1.24.2.linux-amd64.tar.gz
+  #         echo "/usr/local/go/bin" >> $GITHUB_PATH
+
+  #     - name: Download and install Cuda Toolkit
+  #       run: |
+  #         wget -nv https://developer.download.nvidia.com/compute/cuda/11.4.0/local_installers/cuda_11.4.0_470.42.01_linux.run
+  #         sh cuda_11.4.0_470.42.01_linux.run --silent --toolkit
+  #         echo "/usr/local/cuda-11.4/bin" >> $GITHUB_PATH
+
+  #     - name: Grab first tag
+  #       id: latest-tag
+  #       run: |
+  #         echo "latest-tag=$(echo ${{ steps.checkout-tags.outputs.tags }} | cut -d '\n' -f 1)" | tee -a $GITHUB_OUTPUT
+
+  #     - name: Checkout branch
+  #       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+  #       with:
+  #         token: ${{ secrets.WORKFLOW_TOKEN }}
+  #         ref: "checkout-tags/${{ steps.latest-tag.outputs.latest-tag }}"
+
+  #     - name: Build Ollama
+  #       run: |
+  #         cmake -DCMAKE_CUDA_COMPILER=/usr/local/cuda-11.4/bin/nvcc -B build
+  #         cmake --build build --config Release
+  #         go build -o ollama .
