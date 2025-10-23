@@ -46,7 +46,7 @@ jobs:
       - name: Grab first tag
         id: latest-tag
         run: |
-          echo 'latest-tag=$(echo -e $"${{ steps.checkout-tags.outputs.tags }}" | cut -d $"\n" -f 1)' | tee -a $GITHUB_OUTPUT
+          echo 'latest-tag=$("${{ steps.checkout-tags.outputs.tags }}" | cut -d $"\n" -f 1)' | tee -a $GITHUB_OUTPUT
           echo "up-to-date=$(echo ${{ steps.checkout-tags.outputs.up-to-date }})" | tee -a $GITHUB_OUTPUT
 
       # - name: Kick off build workflow
