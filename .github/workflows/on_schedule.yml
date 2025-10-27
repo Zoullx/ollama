@@ -113,7 +113,7 @@ jobs:
             github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'run_tag_arm.yml',
+              workflow_id: 'build_37.yml',
               ref: 'main',
               inputs: {
                 tag: ${{ needs.tags.outputs.latest-tag }}
