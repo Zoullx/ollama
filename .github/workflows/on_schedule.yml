@@ -116,7 +116,7 @@ jobs:
               workflow_id: 'build_37.yml',
               ref: 'main',
               inputs: {
-                tag: '${{ needs.tags.outputs.latest-tag }}''
+                tag: '${{ needs.tags.outputs.latest-tag }}'
               }
             })
 
