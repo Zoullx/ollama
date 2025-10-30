@@ -21,10 +21,14 @@ jobs:
       GOFLAGS: ${{ steps.goflags.outputs.GOFLAGS }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: "checkout-tags/${{ inputs.tag }}"
+
       - name: Set environment
         id: goflags
         run: |
-          echo GOFLAGS="'-ldflags=-w -s \"-X=github.com/ollama/ollama/version.Version=${GITHUB_REF_NAME#v}\" \"-X=github.com/ollama/ollama/server.mode=release\"'" >>$GITHUB_OUTPUT
+          TAG=${{ inputs.tag }}
+          echo GOFLAGS="'-ldflags=-w -s \"-X=github.com/ollama/ollama/version.Version=${TAG#v}\" \"-X=github.com/ollama/ollama/server.mode=release\"'" >>$GITHUB_OUTPUT
 
   darwin-build:
     runs-on: macos-14
@@ -111,7 +115,8 @@ jobs:
             rocm-version: "6.2"
             flags: '-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS="-parallel-jobs=4 -Wno-ignored-attributes -Wno-deprecated-pragma" -DCMAKE_CXX_FLAGS="-parallel-jobs=4 -Wno-ignored-attributes -Wno-deprecated-pragma"'
             runner_dir: "rocm"
-    runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    # runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    runs-on: ${{ matrix.arch == 'arm64' && format('{0}-11-arm', matrix.os) || format('{0}-latest', matrix.os) }}
     environment: release
     env:
       GOFLAGS: ${{ needs.setup-environment.outputs.GOFLAGS }}
@@ -199,7 +204,8 @@ jobs:
           - os: windows
             arch: arm64
             llvmarch: aarch64
-    runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    # runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    runs-on: ${{ matrix.arch == 'arm64' && format('{0}-11-arm', matrix.os) || format('{0}-latest', matrix.os) }}
     environment: release
     needs: [setup-environment]
     env:
@@ -260,7 +266,8 @@ jobs:
           - os: linux
             arch: arm64
             target: archive_novulkan
-    runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    # runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     environment: release
     needs: setup-environment
     env:
@@ -343,7 +350,8 @@ jobs:
               CGO_CFLAGS
               CGO_CXXFLAGS
               GOFLAGS
-    runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    # runs-on: ${{ matrix.arch == 'arm64' && format('{0}-{1}', matrix.os, matrix.arch) || matrix.os }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     environment: release
     needs: setup-environment
     env:
@@ -380,7 +388,8 @@ jobs:
     strategy:
       matrix:
         suffix: ["", "-rocm"]
-    runs-on: linux
+    # runs-on: linux
+    runs-on: ubuntu-latest
     environment: release
     needs: [docker-build-push]
     steps:
