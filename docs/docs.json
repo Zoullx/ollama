@@ -58,7 +58,11 @@
   "redirects": [
     {
       "source": "/openai",
-      "destination": "/api/openai"
+      "destination": "/api/openai-compatibility"
+    },
+    {
+      "source": "/api/openai",
+      "destination": "/api/openai-compatibility"
     }
   ],
   "navigation": {
