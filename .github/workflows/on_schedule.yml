@@ -35,19 +35,19 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_TOKEN }}
 
-      # # The branches are how checkout tags above checks for new tags
-      # - name: Push branches
-      #   if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
-      #   run: |
-      #     while read branch; do
-      #       git push origin refs/heads/$branch
-      #     done <<< "${{ steps.checkout-tags.outputs.branches }}"
-
-      - name: Push branch
+      # The branches are how checkout tags above checks for new tags
+      - name: Push branches
         if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
         run: |
-          branch=$(echo -e "${{ steps.checkout-tags.outputs.branches }}" | cut -d $'\n' -f 1)
-          git push origin refs/heads/$branch
+          while read branch; do
+            git push origin refs/heads/$branch
+          done <<< "${{ steps.checkout-tags.outputs.branches }}"
+
+      # - name: Push branch
+      #   if: ${{ steps.checkout-tags.outputs.up-to-date != 'true' }}
+      #   run: |
+      #     branch=$(echo -e "${{ steps.checkout-tags.outputs.branches }}" | cut -d $'\n' -f 1)
+      #     git push origin refs/heads/$branch
 
       - name: Grab first tag
         id: latest-tag
