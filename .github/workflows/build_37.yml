@@ -125,7 +125,7 @@ jobs:
       - name: Install system dependencies
         run: |
           choco install -y --no-progress ccache ninja ${{ startsWith(matrix.preset, 'CUDA ') && endsWith(matrix.preset, '11') && 'visualstudio2019enterprise' || '' }}
-          ${{ startsWith(matrix.preset, 'CUDA ') && endsWith(matrix.preset, '11') && 'ls "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise"' || '' }}
+          ${{ startsWith(matrix.preset, 'CUDA ') && endsWith(matrix.preset, '11') && 'ls "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7"' || '' }}
           ccache -o cache_dir=${{ github.workspace }}\.ccache
       - if: startsWith(matrix.preset, 'CUDA ') || startsWith(matrix.preset, 'ROCm ')
         id: cache-install
