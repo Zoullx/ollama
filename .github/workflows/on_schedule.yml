@@ -86,7 +86,7 @@ jobs:
 
       - name: Update for compute 3.7
         run: |
-          sed -i 's/"CMAKE_CUDA_ARCHITECTURES": "50-virtual;60-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-virtual;87-virtual;89-virtual;90-virtual",/"CMAKE_CUDA_ARCHITECTURES": "37-virtual;50-virtual;60-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-virtual;87-virtual;89-virtual;90-virtual",/' CMakePresets.json
+          sed -i 's/"CMAKE_CUDA_ARCHITECTURES": "50-virtual;60-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-virtual;87-virtual;89-virtual;90-virtual",/"CMAKE_CUDA_ARCHITECTURES": "37-virtual;50-virtual;60-virtual;61-virtual;70-virtual;75-virtual;80-virtual;86-virtual;87-virtual",/' CMakePresets.json
           sed -i 's/list(APPEND ARCH_FLAGS -mavxvnni)/# list(APPEND ARCH_FLAGS -mavxvnni)/' ml/backend/ggml/ggml/src/ggml-cpu/CMakeLists.txt
           sed -i 's/list(APPEND CMAKE_CUDA_ARCHITECTURES 50-virtual 61-virtual 70-virtual)/list(APPEND CMAKE_CUDA_ARCHITECTURES 37-virtual 50-virtual 61-virtual 70-virtual)/' ml/backend/ggml/ggml/src/ggml-cuda/CMakeLists.txt
 
