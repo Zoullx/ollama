@@ -46,7 +46,8 @@ type completionRequest struct {
 
 // completionResponse is received from the subprocess
 type completionResponse struct {
-	Content string `json:"content"`
+	Content string `json:"content,omitempty"`
+	Image   string `json:"image,omitempty"`
 	Done    bool   `json:"done"`
 }
 
@@ -69,7 +70,7 @@ func NewServer(modelName string) (*Server, error) {
 		port = rand.Intn(65535-49152) + 49152
 	}
 
-	// Get the ollama executable path
+	// Get the ollama-mlx executable path (in same directory as current executable)
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("unable to lookup executable path: %w", err)
@@ -77,9 +78,10 @@ func NewServer(modelName string) (*Server, error) {
 	if eval, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = eval
 	}
+	mlxExe := filepath.Join(filepath.Dir(exe), "ollama-mlx")
 
-	// Spawn subprocess: ollama runner --image-engine --model <path> --port <port>
-	cmd := exec.Command(exe, "runner", "--image-engine", "--model", modelName, "--port", strconv.Itoa(port))
+	// Spawn subprocess: ollama-mlx runner --image-engine --model <path> --port <port>
+	cmd := exec.Command(mlxExe, "runner", "--image-engine", "--model", modelName, "--port", strconv.Itoa(port))
 	cmd.Env = os.Environ()
 
 	s := &Server{
@@ -112,7 +114,7 @@ func NewServer(modelName string) (*Server, error) {
 		}
 	}()
 
-	slog.Info("starting image runner subprocess", "model", modelName, "port", port)
+	slog.Info("starting ollama-mlx image runner subprocess", "exe", mlxExe, "model", modelName, "port", port)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start image runner: %w", err)
 	}
@@ -250,15 +252,23 @@ func (s *Server) Completion(ctx context.Context, req llm.CompletionRequest, fn f
 		return fmt.Errorf("completion request failed: %d", resp.StatusCode)
 	}
 
-	// Stream responses
+	// Stream responses - use large buffer for base64 image data
 	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024) // 16MB max
 	for scanner.Scan() {
 		var cresp completionResponse
 		if err := json.Unmarshal(scanner.Bytes(), &cresp); err != nil {
 			continue
 		}
+
+		content := cresp.Content
+		// If this is the final response with an image, encode it in the content
+		if cresp.Done && cresp.Image != "" {
+			content = "IMAGE_BASE64:" + cresp.Image
+		}
+
 		fn(llm.CompletionResponse{
-			Content: cresp.Content,
+			Content: content,
 			Done:    cresp.Done,
 		})
 		if cresp.Done {
