@@ -1604,8 +1604,9 @@ func (s *Server) GenerateRoutes(rc *ollama.Registry) (http.Handler, error) {
 	r.GET("/v1/models", middleware.ListMiddleware(), s.ListHandler)
 	r.GET("/v1/models/:model", middleware.RetrieveMiddleware(), s.ShowHandler)
 	r.POST("/v1/responses", middleware.ResponsesMiddleware(), s.ChatHandler)
-	// OpenAI-compatible image generation endpoint
+	// OpenAI-compatible image generation endpoints
 	r.POST("/v1/images/generations", middleware.ImageGenerationsMiddleware(), s.GenerateHandler)
+	r.POST("/v1/images/edits", middleware.ImageEditsMiddleware(), s.GenerateHandler)
 
 	// Inference (Anthropic compatibility)
 	r.POST("/v1/messages", middleware.AnthropicMessagesMiddleware(), s.ChatHandler)
@@ -2507,8 +2508,14 @@ func (s *Server) handleImageGenerate(c *gin.Context, req api.GenerateRequest, mo
 		return
 	}
 
-	// Set headers for streaming response
-	c.Header("Content-Type", "application/x-ndjson")
+	// Check streaming preference
+	isStreaming := req.Stream == nil || *req.Stream
+
+	contentType := "application/x-ndjson"
+	if !isStreaming {
+		contentType = "application/json; charset=utf-8"
+	}
+	c.Header("Content-Type", contentType)
 
 	// Get seed from options if provided
 	var seed int64
@@ -2523,13 +2530,21 @@ func (s *Server) handleImageGenerate(c *gin.Context, req api.GenerateRequest, mo
 		}
 	}
 
+	var images []llm.ImageData
+	for i, imgData := range req.Images {
+		images = append(images, llm.ImageData{ID: i, Data: imgData})
+	}
+
 	var streamStarted bool
+	var finalResponse api.GenerateResponse
+
 	if err := runner.Completion(c.Request.Context(), llm.CompletionRequest{
 		Prompt: req.Prompt,
 		Width:  req.Width,
 		Height: req.Height,
 		Steps:  req.Steps,
 		Seed:   seed,
+		Images: images,
 	}, func(cr llm.CompletionResponse) {
 		streamStarted = true
 		res := api.GenerateResponse{
@@ -2553,6 +2568,11 @@ func (s *Server) handleImageGenerate(c *gin.Context, req api.GenerateRequest, mo
 			res.Metrics.LoadDuration = checkpointLoaded.Sub(checkpointStart)
 		}
 
+		if !isStreaming {
+			finalResponse = res
+			return
+		}
+
 		data, _ := json.Marshal(res)
 		c.Writer.Write(append(data, '\n'))
 		c.Writer.Flush()
@@ -2562,5 +2582,10 @@ func (s *Server) handleImageGenerate(c *gin.Context, req api.GenerateRequest, mo
 		if !streamStarted {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
+		return
+	}
+
+	if !isStreaming {
+		c.JSON(http.StatusOK, finalResponse)
 	}
 }
